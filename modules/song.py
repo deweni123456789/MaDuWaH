@@ -10,7 +10,7 @@ import yt_dlp
 import humanize
 
 DEVELOPER_URL = "https://t.me/deweni2"
-COOKIES_FILE = "cookies.txt"  # keep if needed for YouTube auth
+COOKIES_FILE = "cookies.txt"
 
 def _build_dev_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]])
@@ -57,6 +57,7 @@ def register_song(app: Client):
         requester = message.from_user.mention if message.from_user else "Unknown"
 
         status = await message.reply_text(f"🎶 Searching for `{query}` ...")
+        print(f"[SONG] Searching YouTube for: {query}")
 
         tmpdir = tempfile.mkdtemp(prefix="song_dl_")
         try:
@@ -68,11 +69,12 @@ def register_song(app: Client):
                     {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
                 ],
                 "quiet": True,
-                "default_search": "ytsearch1",  # search only first result
+                "default_search": "ytsearch1",
             }
 
             if os.path.exists(COOKIES_FILE):
                 ydl_opts["cookiefile"] = COOKIES_FILE
+                print("[SONG] Using cookies.txt")
 
             def download():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -80,9 +82,10 @@ def register_song(app: Client):
 
             loop = asyncio.get_running_loop()
             info = await loop.run_in_executor(None, download)
+            print(f"[SONG] Downloaded info: {info.get('title')}")
+
             meta = _format_metadata(info, requester)
 
-            # find file
             file_path = None
             for root, _, files in os.walk(tmpdir):
                 for f in files:
@@ -106,6 +109,7 @@ def register_song(app: Client):
             await status.delete()
 
         except Exception as e:
+            print(f"[SONG ERROR] {e}")
             try:
                 await status.edit(f"⚠️ Error: {e}")
                 await asyncio.sleep(4)
