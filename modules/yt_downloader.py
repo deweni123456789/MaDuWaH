@@ -26,7 +26,7 @@ def _build_keyboard(url):
                 InlineKeyboardButton("🎧 Audio", callback_data=f"{CB_AUDIO}|{url}"),
                 InlineKeyboardButton("🎬 Video", callback_data=f"{CB_VIDEO}|{url}")
             ],
-            [InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]
+            [InlineKeyboardButton("Developer", url=DEVELOPER_URL)]
         ]
     )
 
