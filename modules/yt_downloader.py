@@ -23,12 +23,13 @@ def _build_keyboard(url):
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("📥 Download Audio", callback_data=f"{CB_AUDIO}|{url}"),
-                InlineKeyboardButton("🎬 Download Video", callback_data=f"{CB_VIDEO}|{url}")
+                InlineKeyboardButton("🎧 Audio", callback_data=f"{CB_AUDIO}|{url}"),
+                InlineKeyboardButton("🎬 Video", callback_data=f"{CB_VIDEO}|{url}")
             ],
-            [InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]
+            [InlineKeyboardButton("Developer @DEWENI2", url="https://t.me/deweni2")]
         ]
     )
+
 
 def _build_dev_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]])
