@@ -26,13 +26,12 @@ def _build_keyboard(url):
                 InlineKeyboardButton("🎧 Audio", callback_data=f"{CB_AUDIO}|{url}"),
                 InlineKeyboardButton("🎬 Video", callback_data=f"{CB_VIDEO}|{url}")
             ],
-            [InlineKeyboardButton("Developer @DEWENI2", url="https://t.me/deweni2")]
+            [InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]
         ]
     )
 
-
 def _build_dev_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Developer", url=DEVELOPER_URL)]])
 
 def _format_metadata(info, requester_mention):
     title = info.get("title", "Unknown title")
@@ -73,7 +72,6 @@ def register_youtube(app: Client):
         if not m:
             return
         url = m.group(0)
-        # Directly send inline buttons, no extra message
         await message.reply_text(
             "🎯 Choose an option:",
             reply_markup=_build_keyboard(url)
@@ -91,9 +89,8 @@ def register_youtube(app: Client):
         tmpdir = tempfile.mkdtemp(prefix="yt_dl_")
 
         try:
-            # Metadata extract
             def extract():
-                with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
+                with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "cookiefile": "cookies.txt"}) as ydl:
                     return ydl.extract_info(url, download=False)
 
             loop = asyncio.get_running_loop()
@@ -106,6 +103,7 @@ def register_youtube(app: Client):
                 ydl_opts = {
                     "format": "bestaudio/best",
                     "outtmpl": outtmpl,
+                    "cookiefile": "cookies.txt",  # ✅ FIX
                     "postprocessors": [
                         {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
                     ],
@@ -115,6 +113,7 @@ def register_youtube(app: Client):
                     "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/best",
                     "outtmpl": outtmpl,
                     "merge_output_format": "mp4",
+                    "cookiefile": "cookies.txt",  # ✅ FIX
                 }
 
             def download():
@@ -123,7 +122,6 @@ def register_youtube(app: Client):
 
             result = await loop.run_in_executor(None, download)
 
-            # find file
             file_path = None
             for root, _, files in os.walk(tmpdir):
                 for f in files:
@@ -153,7 +151,6 @@ def register_youtube(app: Client):
                     reply_to_message_id=cq.message.id
                 )
 
-            # Delete status message after upload
             await status.delete()
 
         except Exception as e:
