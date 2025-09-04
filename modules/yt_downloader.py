@@ -1,3 +1,4 @@
+# modules/yt_downloader.py
 import re
 import os
 import asyncio
@@ -10,6 +11,7 @@ import yt_dlp
 import humanize
 
 DEVELOPER_URL = "https://t.me/deweni2"
+COOKIES_FILE = "cookies.txt"  # ensure this exists at project root
 
 YOUTUBE_URL_REGEX = re.compile(
     r"(https?://)?(www\.)?(m\.)?(youtube\.com/watch\?v=|youtu\.be/)[A-Za-z0-9_\-]{6,}",
@@ -26,12 +28,12 @@ def _build_keyboard(url):
                 InlineKeyboardButton("🎧 Audio", callback_data=f"{CB_AUDIO}|{url}"),
                 InlineKeyboardButton("🎬 Video", callback_data=f"{CB_VIDEO}|{url}")
             ],
-            [InlineKeyboardButton("Developer", url=DEVELOPER_URL)]
+            [InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]
         ]
     )
 
 def _build_dev_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("Developer", url=DEVELOPER_URL)]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]])
 
 def _format_metadata(info, requester_mention):
     title = info.get("title", "Unknown title")
@@ -61,7 +63,8 @@ def _format_metadata(info, requester_mention):
     if comment_count:
         text += f"Comments: {comment_count}\n"
 
-    text += f"Requested by: {requester_mention}"
+    # 👇 Requested by separate paragraph
+    text += f"\nRequested by: {requester_mention}"
     return text
 
 def register_youtube(app: Client):
@@ -72,10 +75,13 @@ def register_youtube(app: Client):
         if not m:
             return
         url = m.group(0)
-        await message.reply_text(
-            "🎯 Choose an option:",
-            reply_markup=_build_keyboard(url)
-        )
+        try:
+            await message.reply_text(
+                "🎯 Choose an option:",
+                reply_markup=_build_keyboard(url)
+            )
+        except Exception:
+            pass
 
     @app.on_callback_query()
     async def yt_callback(client, cq):
@@ -85,12 +91,20 @@ def register_youtube(app: Client):
         user = cq.from_user
         requester = user.mention if user else "Unknown"
 
-        status = await cq.message.reply_text("⏳ Downloading...")
+        try:
+            status = await cq.message.reply_text("⏳ Downloading...")
+        except Exception:
+            status = None
+
         tmpdir = tempfile.mkdtemp(prefix="yt_dl_")
 
         try:
+            extract_opts = {"quiet": True, "skip_download": True}
+            if os.path.exists(COOKIES_FILE):
+                extract_opts["cookiefile"] = COOKIES_FILE
+
             def extract():
-                with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "cookiefile": "cookies.txt"}) as ydl:
+                with yt_dlp.YoutubeDL(extract_opts) as ydl:
                     return ydl.extract_info(url, download=False)
 
             loop = asyncio.get_running_loop()
@@ -99,22 +113,26 @@ def register_youtube(app: Client):
 
             outtmpl = os.path.join(tmpdir, "%(title).100s.%(ext)s")
 
+            ydl_opts = {}
+            if os.path.exists(COOKIES_FILE):
+                ydl_opts["cookiefile"] = COOKIES_FILE
+
             if kind == CB_AUDIO:
-                ydl_opts = {
+                ydl_opts.update({
                     "format": "bestaudio/best",
                     "outtmpl": outtmpl,
-                    "cookiefile": "cookies.txt",  # ✅ FIX
                     "postprocessors": [
                         {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
                     ],
-                }
+                    "noplaylist": True,
+                })
             else:
-                ydl_opts = {
+                ydl_opts.update({
                     "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/best",
                     "outtmpl": outtmpl,
                     "merge_output_format": "mp4",
-                    "cookiefile": "cookies.txt",  # ✅ FIX
-                }
+                    "noplaylist": True,
+                })
 
             def download():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -127,37 +145,70 @@ def register_youtube(app: Client):
                 for f in files:
                     file_path = os.path.join(root, f)
                     break
+                if file_path:
+                    break
 
             if not file_path:
-                await status.edit("❌ Download failed.")
-                await asyncio.sleep(5)
-                await status.delete()
+                if status:
+                    await status.edit("❌ Download failed.")
+                    await asyncio.sleep(3)
+                    try: await status.delete()
+                    except: pass
                 return
 
+            uploaded_msg = None
             if kind == CB_AUDIO:
-                await client.send_audio(
-                    chat_id=cq.message.chat.id,
-                    audio=file_path,
-                    caption=meta,
-                    reply_markup=_build_dev_keyboard(),
-                    reply_to_message_id=cq.message.id
-                )
+                try:
+                    uploaded_msg = await client.send_audio(
+                        chat_id=cq.message.chat.id,
+                        audio=file_path,
+                        caption=meta,
+                        reply_markup=_build_dev_keyboard(),
+                        reply_to_message_id=cq.message.id
+                    )
+                except Exception:
+                    uploaded_msg = await client.send_document(
+                        chat_id=cq.message.chat.id,
+                        document=file_path,
+                        caption=meta,
+                        reply_markup=_build_dev_keyboard(),
+                        reply_to_message_id=cq.message.id
+                    )
             else:
-                await client.send_video(
-                    chat_id=cq.message.chat.id,
-                    video=file_path,
-                    caption=meta,
-                    reply_markup=_build_dev_keyboard(),
-                    reply_to_message_id=cq.message.id
-                )
+                try:
+                    uploaded_msg = await client.send_video(
+                        chat_id=cq.message.chat.id,
+                        video=file_path,
+                        caption=meta,
+                        reply_markup=_build_dev_keyboard(),
+                        reply_to_message_id=cq.message.id
+                    )
+                except Exception:
+                    uploaded_msg = await client.send_document(
+                        chat_id=cq.message.chat.id,
+                        document=file_path,
+                        caption=meta,
+                        reply_markup=_build_dev_keyboard(),
+                        reply_to_message_id=cq.message.id
+                    )
 
-            await status.delete()
+            if status:
+                try: await status.delete()
+                except: pass
+            try: await cq.message.delete()
+            except: pass
+            try:
+                orig = cq.message.reply_to_message
+                if orig:
+                    await orig.delete()
+            except: pass
 
         except Exception as e:
             try:
-                await status.edit(f"⚠️ Error: {e}")
-                await asyncio.sleep(5)
-                await status.delete()
+                if status:
+                    await status.edit(f"⚠️ Error: {e}")
+                    await asyncio.sleep(4)
+                    await status.delete()
             except:
                 pass
         finally:
