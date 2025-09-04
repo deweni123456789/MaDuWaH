@@ -10,7 +10,7 @@ import yt_dlp
 import humanize
 
 DEVELOPER_URL = "https://t.me/deweni2"
-COOKIES_FILE = "cookies.txt"
+COOKIES_FILE = "cookies.txt"  # Optional: YouTube login cookies
 
 def _build_dev_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("Developer @DEWENI2", url=DEVELOPER_URL)]])
@@ -51,7 +51,9 @@ def register_song(app: Client):
     @app.on_message(filters.command("song", prefixes=["/", "!"]))
     async def song_handler(client, message):
         if len(message.command) < 2:
-            return await message.reply_text("❌ Please provide a song name.\nUsage: `/song shape of you`")
+            return await message.reply_text(
+                "❌ Please provide a song name.\nUsage: `/song shape of you`"
+            )
 
         query = " ".join(message.command[1:])
         requester = message.from_user.mention if message.from_user else "Unknown"
@@ -69,7 +71,7 @@ def register_song(app: Client):
                     {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
                 ],
                 "quiet": True,
-                "default_search": "ytsearch1",
+                "default_search": "ytsearch1",  # search only first result
             }
 
             if os.path.exists(COOKIES_FILE):
@@ -90,6 +92,8 @@ def register_song(app: Client):
             for root, _, files in os.walk(tmpdir):
                 for f in files:
                     file_path = os.path.join(root, f)
+                    break
+                if file_path:
                     break
 
             if not file_path:
